@@ -5,6 +5,10 @@
       <v-divider></v-divider>
 
       <v-card-text class="py-6" style="min-height: 500px">
+        <p class="text-caption text-grey-darken-1 mb-4">
+          WebSocket status: {{ connectionStatus }}
+        </p>
+
         <div
           v-if="notifications.length === 0"
           class="text-center text-grey py-8"
@@ -46,9 +50,15 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 
 const notifications = ref([]);
+const connectionStatus = ref("Connecting...");
+const wsUrl =
+  import.meta.env.VITE_NOTIFICATION_WS || "ws://localhost:3003/ws";
+
+let socket = null;
+let reconnectTimer = null;
 
 function formatTime(timestamp) {
   const date = new Date(timestamp);
@@ -62,4 +72,43 @@ function formatTime(timestamp) {
 function clearNotifications() {
   notifications.value = [];
 }
+
+function connectWebSocket() {
+  socket = new WebSocket(wsUrl);
+
+  socket.onopen = () => {
+    connectionStatus.value = "Connected";
+  };
+
+  socket.onmessage = (event) => {
+    const payload = JSON.parse(event.data);
+
+    if (payload.type === "connection.ready") {
+      return;
+    }
+
+    notifications.value.unshift(payload);
+  };
+
+  socket.onclose = () => {
+    connectionStatus.value = "Disconnected. Reconnecting...";
+    reconnectTimer = window.setTimeout(connectWebSocket, 3000);
+  };
+
+  socket.onerror = () => {
+    connectionStatus.value = "Connection error";
+    socket?.close();
+  };
+}
+
+onMounted(() => {
+  connectWebSocket();
+});
+
+onBeforeUnmount(() => {
+  if (reconnectTimer) {
+    window.clearTimeout(reconnectTimer);
+  }
+  socket?.close();
+});
 </script>

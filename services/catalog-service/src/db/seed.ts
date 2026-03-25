@@ -39,6 +39,11 @@ const seedLenses = [
 
 async function seed() {
   console.log('Seeding catalog lenses...');
+  const existingLenses = await db.select().from(lenses).limit(1);
+  if (existingLenses.length > 0) {
+    console.log('Catalog already seeded. Skipping.');
+    process.exit(0);
+  }
   await db.insert(lenses).values(seedLenses);
   console.log(`Seeded ${seedLenses.length} lenses.`);
   process.exit(0);
